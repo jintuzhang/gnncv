@@ -1,0 +1,28 @@
+[system]
+	structure = "../data/r.pdb"
+[[group]]
+	atom_list = "all"
+	initial_temperature = 300.0
+[[potential]]
+	type = "tblite"
+	functional = "GFN1-xTB"
+	total_charge = 1
+	_pbc = false
+[[potential]]
+	type = "plumed"
+	file_name = "./plumed.inp"
+[integrator]
+	type = "baoab"
+	timestep = 0.0005
+	temperatures = 300.0
+	relaxation_times = 0.05
+[[trajectory]]
+	format = "h5"
+	write_velocities = false
+	interval = 500
+[[logger]]
+	format = "csv"
+	interval = 1000
+[run]
+	label = "biased"
+	n_steps = 5000000

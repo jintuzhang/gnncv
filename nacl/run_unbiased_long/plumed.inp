@@ -1,0 +1,7 @@
+# vim:ft=plumed
+
+DISTANCE ATOMS=1,2 LABEL=d
+
+UPPER_WALLS ARG=d AT=0.8 KAPPA=2000 LABEL=w
+
+PRINT ARG=d,w.* FILE=colvar STRIDE=500

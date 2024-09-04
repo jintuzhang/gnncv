@@ -1,0 +1,25 @@
+[system]
+	structure = "../../data/p.pdb"
+[[group]]
+	atom_list = "all"
+	initial_temperature = 300.0
+[[potential]]
+	type = "tblite"
+	functional = "GFN1-xTB"
+	total_charge = 1
+	_pbc = false
+[integrator]
+	type = "baoab"
+	timestep = 0.0005
+	temperatures = 350.0
+	relaxation_times = 0.05
+[[trajectory]]
+	format = "h5"
+	write_velocities = false
+	interval = 100
+[[logger]]
+	format = "csv"
+	interval = 100
+[run]
+	label = "p"
+	n_steps = 100000
