@@ -33,3 +33,5 @@ The contents are organized as follows:
 ---
 
 The modified version of the `mlcolvar` library used for the GNN-CV training is available at: https://github.com/jintuzhang/mlcolvar
+
+The relevant code for the GNN-CV definiton and training is implemented in the `mlcolvar.graph` module of such a library.
