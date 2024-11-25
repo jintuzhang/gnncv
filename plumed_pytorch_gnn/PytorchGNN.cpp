@@ -184,7 +184,7 @@ class PytorchGNN: public Colvar
   std::vector<int> model_atomic_numbers;
   std::vector<AtomNumber> atom_list_a;
   std::vector<AtomNumber> atom_list_b;
-  std::vector<int> atom_list_activate; // local_ids
+  std::vector<int> atom_list_active; // local_ids
   std::unique_ptr<NeighborList> neighbor_list;
   torch::jit::script::Module model;
   torch::ScalarType torch_float_dtype = torch::kFloat32;
@@ -205,7 +205,7 @@ class PytorchGNN: public Colvar
   );
   int atomic_number_from_name(std::string name);
   bool groups_have_intersection(void);
-  void find_activate_atoms(int n_threads);
+  void find_active_atoms(int n_threads);
 
 public:
   explicit PytorchGNN(const ActionOptions&);
@@ -368,12 +368,12 @@ PytorchGNN::PytorchGNN(const ActionOptions& ao):
   if (atom_list_b.size() > 0) {
     if (groups_have_intersection())
       plumed_merror("GROUPA can not intersect with GROUPB!");
-    atom_list_activate.resize(atom_list_a.size() + atom_list_b.size());
-    atom_list_activate.clear();
+    atom_list_active.resize(atom_list_a.size() + atom_list_b.size());
+    atom_list_active.clear();
   } else {
-    atom_list_activate.resize(atom_list_a.size());
-    atom_list_activate.clear();
-    find_activate_atoms(1);
+    atom_list_active.resize(atom_list_a.size());
+    atom_list_active.clear();
+    find_active_atoms(1);
   }
 
   // check precise
@@ -729,8 +729,8 @@ void PytorchGNN::calculate()
   if (neighbor_list->getStride() > 0 && invalidate_list)
     neighbor_list->update(x_local);
   if (atom_list_b.size() > 0)
-    find_activate_atoms(n_threads);
-  n_atoms = (int)atom_list_activate.size();
+    find_active_atoms(n_threads);
+  n_atoms = (int)atom_list_active.size();
   n_threads = std::min(n_threads, n_atoms);
 
   // get the unit
@@ -742,7 +742,7 @@ void PytorchGNN::calculate()
   auto positions = torch::empty({n_atoms, 3}, torch_float_dtype);
   #pragma omp parallel for num_threads(n_threads)
   for (int i = 0; i < n_atoms; i++) {
-    int index = atom_list_activate[i];
+    int index = atom_list_active[i];
     positions[i][0] = x_local[index][0] * to_ang;
     positions[i][1] = x_local[index][1] * to_ang;
     positions[i][2] = x_local[index][2] * to_ang;
@@ -767,7 +767,7 @@ void PytorchGNN::calculate()
   auto node_attrs = torch::zeros({n_atoms, n_node_feats}, torch_float_dtype);
   #pragma omp parallel for num_threads(n_threads)
   for (int i = 0; i < n_atoms; i++) {
-    int index = atom_list_activate[i];
+    int index = atom_list_active[i];
     int node_type = system_node_types[getAbsoluteIndex(index).index()];
     node_attrs[i][node_type] = 1.0;
   }
@@ -799,8 +799,8 @@ void PytorchGNN::calculate()
     for (int i = 0; i < n_edges; i++) {
       distance_vector[i] = pbc_tools.distance(
         true,
-        x_local[atom_list_activate[edge_index_vector[0][i]]],
-        x_local[atom_list_activate[edge_index_vector[1][i]]]
+        x_local[atom_list_active[edge_index_vector[0][i]]],
+        x_local[atom_list_active[edge_index_vector[1][i]]]
       );
     }
 
@@ -893,10 +893,8 @@ void PytorchGNN::calculate()
   // TODO: some of these things are required by MACE. We should disable
   // some of them when not using MACE, maybe by distinguishing the MACE model.
   auto batch = torch::zeros({n_atoms}, torch::dtype(torch::kInt64));
-  auto n_receivers = torch::ones({1, 1}, torch::dtype(torch::kInt64));
   auto ptr = torch::empty({2}, torch::dtype(torch::kInt64));
   auto weight = torch::empty({1}, torch_float_dtype);
-  n_receivers[0][0] = n_atoms;
   ptr[0] = 0;
   ptr[1] = n_atoms;
   weight[0] = 1.0;
@@ -905,7 +903,6 @@ void PytorchGNN::calculate()
   // TODO: some of these things are required by MACE. We should disable
   // some of them when not using MACE, maybe by distinguishing the MACE model.
   batch = batch.to(device);
-  n_receivers = n_receivers.to(device);
   ptr = ptr.to(device);
   weight = weight.to(device);
 
@@ -914,7 +911,6 @@ void PytorchGNN::calculate()
   // some of them when not using MACE, maybe by distinguishing the MACE model.
   c10::Dict<std::string, torch::Tensor> input;
   input.insert("batch", batch);
-  input.insert("n_receivers", n_receivers);
   input.insert("cell", cell);
   input.insert("edge_index", edge_index);
   input.insert("node_attrs", node_attrs);
@@ -969,7 +965,7 @@ void PytorchGNN::calculate()
       }
       #pragma omp parallel for num_threads(n_threads)
       for (int j = 0; j < n_atoms; j++) {
-        int index = atom_list_activate[j];
+        int index = atom_list_active[j];
         setAtomsDerivatives(
           getPntrToComponent(name_comp), index, derivatives[j]
         );
@@ -997,7 +993,7 @@ void PytorchGNN::calculate()
     }
     #pragma omp parallel for num_threads(n_threads)
     for (int j = 0; j < n_atoms; j++) {
-      int index = atom_list_activate[j];
+      int index = atom_list_active[j];
       setAtomsDerivatives(
         getPntrToComponent(name_comp_z), index, derivatives[j]
       );
@@ -1040,7 +1036,7 @@ void PytorchGNN::calculate()
     }
     #pragma omp parallel for num_threads(n_threads)
     for (int j = 0; j < n_atoms; j++) {
-      int index = atom_list_activate[j];
+      int index = atom_list_active[j];
       setAtomsDerivatives(
         getPntrToComponent(name_comp_z), index, derivatives[j]
       );
@@ -1061,7 +1057,7 @@ void PytorchGNN::calculate()
     }
     #pragma omp parallel for num_threads(n_threads)
     for (int j = 0; j < n_atoms; j++) {
-      int index = atom_list_activate[j];
+      int index = atom_list_active[j];
       setAtomsDerivatives(
         getPntrToComponent(name_comp_b), index, derivatives[j]
       );
@@ -1131,9 +1127,9 @@ bool PytorchGNN::groups_have_intersection(void) {
   return intersections.size() > 0;
 }
 
-void PytorchGNN::find_activate_atoms(int n_threads) {
+void PytorchGNN::find_active_atoms(int n_threads) {
   if (atom_list_b.size() > 0) {
-    atom_list_activate.clear();
+    atom_list_active.clear();
     std::vector<int> neighbors(neighbor_list->size());
 
     #pragma omp parallel for num_threads(n_threads)
@@ -1145,17 +1141,16 @@ void PytorchGNN::find_activate_atoms(int n_threads) {
     for (int i : neighbors)
         neighbors_set.insert(i);
     neighbors.assign(neighbors_set.begin(), neighbors_set.end());
-    std::sort(neighbors.begin(), neighbors.end());
 
     for (size_t i = 0; i < atom_list_a.size(); i++)
-      atom_list_activate.push_back(i);
+      atom_list_active.push_back(i);
     for (size_t i = 0; i < neighbors.size(); i++)
-      atom_list_activate.push_back(neighbors[i]);
-  } else if (atom_list_activate.size() == 0) {
-    atom_list_activate.clear();
+      atom_list_active.push_back(neighbors[i]);
+  } else if (atom_list_active.size() == 0) {
+    atom_list_active.clear();
 
     for (size_t i = 0; i < atom_list_a.size(); i++)
-      atom_list_activate.push_back(i);
+      atom_list_active.push_back(i);
   }
 }
 
