@@ -1,6 +1,6 @@
 Training and simulation inputs for paper "Descriptors-free Collective Variables From Geometric Graph Neural Networks".
 
-arXiv link to the paper: https://arxiv.org/abs/2409.07339v1
+Link to the paper: https://pubs.acs.org/doi/10.1021/acs.jctc.4c01197 (arXiv: https://arxiv.org/abs/2409.07339v3)
 
 ---
 
